@@ -1,6 +1,6 @@
 {
   "description": "通用图片下载配置文件",
-  "base_url": "https://www.seagullwatch.com/",
+  "base_url": "https://www.chrono24.cn/",
   "site_name": "目标网站",
   "download_settings": {
     "delay_between_downloads": 0.5,

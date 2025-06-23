@@ -40,14 +40,26 @@ class ImageDownloader:
         self.force_download_all = False
         self.use_gemini_vision = False
         
-        # 设置请求头，模拟浏览器访问
+        # 设置请求头，模拟真实浏览器访问
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+        })
+        
+        # 支持cookie和会话管理
+        self.session.cookies.update({
+            'lang': 'zh-CN',
+            'timezone': 'Asia/Shanghai'
         })
         
         # 创建images目录
@@ -229,27 +241,126 @@ class ImageDownloader:
             sys.exit(1)
     
     def get_page_content(self, url):
-        """获取网页内容，带重试机制"""
-        max_retries = 3
-        timeout_values = [45, 60, 90]  # 递增的超时时间
+        """获取网页内容，带强化的重试机制和反爬虫对策"""
+        max_retries = 5
+        timeout_values = [30, 45, 60, 75, 90]  # 递增的超时时间
         
         for attempt in range(max_retries):
             try:
                 timeout = timeout_values[attempt]
                 print(f"🌐 正在访问: {url} (尝试 {attempt + 1}/{max_retries}, 超时设置: {timeout}秒)")
-                response = self.session.get(url, timeout=timeout)
+                
+                # 动态调整请求头，模拟不同的浏览器行为
+                self._randomize_headers()
+                
+                # 添加随机延迟，模拟人类访问行为
+                if attempt > 0:
+                    delay = 2 + attempt * 3  # 2, 5, 8, 11, 14秒
+                    print(f"⏱️  人类化延迟 {delay} 秒...")
+                    time.sleep(delay)
+                
+                response = self.session.get(url, timeout=timeout, allow_redirects=True)
+                
+                # 检查响应状态
+                if response.status_code == 403:
+                    print(f"🚫 检测到403 Forbidden错误 - 网站启用了防爬虫机制")
+                    if attempt < max_retries - 1:
+                        print(f"🔄 尝试使用备用策略...")
+                        self._handle_403_error(url, attempt)
+                        continue
+                    else:
+                        print(f"❌ 无法绕过防爬虫机制，建议：")
+                        print(f"   1. 检查网站的robots.txt文件")
+                        print(f"   2. 确认是否需要登录或验证")
+                        print(f"   3. 使用代理或VPN更换IP地址")
+                        print(f"   4. 联系网站管理员获取API访问权限")
+                        return None
+                elif response.status_code == 429:
+                    print(f"🐌 检测到429 Too Many Requests - 访问频率过高")
+                    if attempt < max_retries - 1:
+                        wait_time = 30 * (attempt + 1)  # 30, 60, 90, 120秒
+                        print(f"⏱️  等待 {wait_time} 秒以降低访问频率...")
+                        time.sleep(wait_time)
+                        continue
+                
                 response.raise_for_status()
-                print(f"✅ 网页访问成功")
+                print(f"✅ 网页访问成功 (状态码: {response.status_code})")
                 return response.text
+                
+            except requests.exceptions.Timeout:
+                print(f"⏰ 第 {attempt + 1} 次尝试超时")
+            except requests.exceptions.ConnectionError as e:
+                print(f"🔌 第 {attempt + 1} 次连接失败: {e}")
+            except requests.exceptions.HTTPError as e:
+                print(f"🚫 第 {attempt + 1} 次HTTP错误: {e}")
+                if "403" in str(e):
+                    print(f"💡 建议: 这可能是网站的反爬虫机制，尝试：")
+                    print(f"   - 降低访问频率")
+                    print(f"   - 使用不同的User-Agent")
+                    print(f"   - 检查是否需要特殊的认证头")
             except requests.RequestException as e:
-                print(f"⚠️  第 {attempt + 1} 次尝试失败: {e}")
-                if attempt < max_retries - 1:
-                    wait_time = 3 * (attempt + 1)  # 递增等待时间
-                    print(f"⏱️  等待 {wait_time} 秒后重试...")
-                    time.sleep(wait_time)
-                else:
-                    print(f"❌ 访问网页失败，已尝试 {max_retries} 次")
-                    return None
+                print(f"⚠️  第 {attempt + 1} 次请求失败: {e}")
+            
+            if attempt < max_retries - 1:
+                wait_time = 5 * (attempt + 1)  # 5, 10, 15, 20秒
+                print(f"⏱️  等待 {wait_time} 秒后重试...")
+                time.sleep(wait_time)
+        
+        print(f"❌ 访问网页失败，已尝试 {max_retries} 次")
+        return None
+    
+    def _randomize_headers(self):
+        """随机化请求头，模拟不同的浏览器环境"""
+        import random
+        
+        user_agents = [
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:122.0) Gecko/20100101 Firefox/122.0'
+        ]
+        
+        # 随机选择User-Agent
+        self.session.headers['User-Agent'] = random.choice(user_agents)
+        
+        # 随机化其他头部
+        accept_languages = [
+            'zh-CN,zh;q=0.9,en;q=0.8',
+            'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
+            'zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2'
+        ]
+        self.session.headers['Accept-Language'] = random.choice(accept_languages)
+    
+    def _handle_403_error(self, url, attempt):
+        """处理403错误的特殊策略"""
+        print(f"🛡️  尝试反爬虫策略 {attempt + 1}:")
+        
+        # 策略1: 清除可能的跟踪标识
+        if attempt == 0:
+            print("   - 清除DNT和Sec-Fetch头部")
+            headers_to_remove = ['DNT', 'Sec-Fetch-Dest', 'Sec-Fetch-Mode', 'Sec-Fetch-Site', 'Sec-Fetch-User']
+            for header in headers_to_remove:
+                self.session.headers.pop(header, None)
+        
+        # 策略2: 模拟移动设备
+        elif attempt == 1:
+            print("   - 切换到移动设备User-Agent")
+            self.session.headers['User-Agent'] = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
+        
+        # 策略3: 添加Referer
+        elif attempt == 2:
+            print("   - 添加Referer头部")
+            from urllib.parse import urljoin, urlparse
+            parsed = urlparse(url)
+            base_url = f"{parsed.scheme}://{parsed.netloc}"
+            self.session.headers['Referer'] = base_url
+        
+        # 策略4: 模拟旧版浏览器
+        elif attempt == 3:
+            print("   - 使用旧版浏览器标识")
+            self.session.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     
     def find_images_on_page(self, html_content, base_url):
         """在网页中查找图片URL"""
@@ -296,26 +407,91 @@ class ImageDownloader:
         return False
     
     def download_image(self, url, filename):
-        """下载单张图片"""
-        try:
-            print(f"📥 正在下载: {filename}")
-            response = self.session.get(url, timeout=30, stream=True)
-            response.raise_for_status()
-            
-            file_path = self.images_dir / filename
-            
-            with open(file_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            
-            file_size = file_path.stat().st_size
-            print(f"✅ 下载完成: {filename} ({self.format_file_size(file_size)})")
-            return True
-            
-        except Exception as e:
-            print(f"❌ 下载失败: {filename} - {e}")
-            return False
+        """下载单张图片，带重试和验证机制"""
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"📥 正在下载: {filename}" + (f" (重试 {attempt + 1})" if attempt > 0 else ""))
+                
+                # 为图片下载设置专门的请求头
+                image_headers = {
+                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                    'Sec-Fetch-Dest': 'image',
+                    'Sec-Fetch-Mode': 'no-cors',
+                    'Sec-Fetch-Site': 'same-origin',
+                }
+                
+                # 如果是重试，添加延迟
+                if attempt > 0:
+                    delay = 2 ** attempt  # 2, 4秒
+                    print(f"   ⏱️  等待 {delay} 秒后重试...")
+                    time.sleep(delay)
+                
+                response = self.session.get(url, timeout=45, stream=True, headers=image_headers)
+                
+                # 检查响应状态
+                if response.status_code == 403:
+                    print(f"   🚫 图片访问被拒绝 (403)")
+                    if attempt < max_retries - 1:
+                        # 尝试不带额外头部下载
+                        print(f"   🔄 尝试简化请求头...")
+                        continue
+                    else:
+                        print(f"   ❌ 无法下载此图片，可能受到访问限制")
+                        return False
+                
+                response.raise_for_status()
+                
+                # 验证内容类型
+                content_type = response.headers.get('content-type', '').lower()
+                if not any(img_type in content_type for img_type in ['image/', 'application/octet-stream']):
+                    print(f"   ⚠️  警告: 响应内容类型可能不是图片 ({content_type})")
+                
+                file_path = self.images_dir / filename
+                
+                # 下载文件
+                with open(file_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                
+                # 验证下载的文件
+                file_size = file_path.stat().st_size
+                if file_size == 0:
+                    print(f"   ❌ 下载的文件为空")
+                    file_path.unlink(missing_ok=True)  # 删除空文件
+                    if attempt < max_retries - 1:
+                        continue
+                    return False
+                elif file_size < 100:  # 小于100字节可能是错误页面
+                    print(f"   ⚠️  下载的文件很小 ({file_size} bytes)，可能是错误响应")
+                    # 检查文件内容
+                    with open(file_path, 'r', errors='ignore') as f:
+                        content = f.read()
+                        if any(error_text in content.lower() for error_text in ['error', '404', '403', 'forbidden', 'not found']):
+                            print(f"   ❌ 文件内容包含错误信息")
+                            file_path.unlink(missing_ok=True)
+                            if attempt < max_retries - 1:
+                                continue
+                            return False
+                
+                print(f"✅ 下载完成: {filename} ({self.format_file_size(file_size)})")
+                return True
+                
+            except requests.exceptions.Timeout:
+                print(f"   ⏰ 下载超时")
+            except requests.exceptions.ConnectionError as e:
+                print(f"   🔌 连接失败: {e}")
+            except requests.exceptions.HTTPError as e:
+                print(f"   🚫 HTTP错误: {e}")
+                if "403" in str(e) or "Forbidden" in str(e):
+                    print(f"   💡 建议: 此图片可能受到访问限制")
+            except Exception as e:
+                print(f"   ❌ 下载异常: {e}")
+        
+        print(f"❌ 下载失败: {filename} - 已尝试 {max_retries} 次")
+        return False
     
     def format_file_size(self, size_bytes):
         """格式化文件大小显示"""
@@ -378,8 +554,8 @@ class ImageDownloader:
         print(f"❌ 下载失败: {total_failed} 张")
         print("🎉 下载任务完成!")
         
-        # 如果有成功下载的图片，执行智能重命名
-        if total_downloaded > 0:
+        # 如果有成功下载的图片，执行智能重命名（除非是Gemini模式）
+        if total_downloaded > 0 and not self.use_gemini_vision:
             self.smart_rename_images()
     
     def get_all_image_urls(self):
@@ -820,7 +996,7 @@ class ImageDownloader:
         
         # 获取所有图片文件
         image_files = []
-        for ext in ['jpg', 'jpeg', 'png', 'webp']:
+        for ext in ['jpg', 'jpeg', 'png', 'webp', 'svg']:
             image_files.extend(self.images_dir.glob(f"*.{ext}"))
             image_files.extend(self.images_dir.glob(f"*.{ext.upper()}"))
         
@@ -928,7 +1104,7 @@ class ImageDownloader:
             print(f"   4. 地区是否支持Gemini API")
     
     def generate_ai_filename(self, image_path, analysis_data):
-        """根据AI分析结果生成新文件名 - 格式: seagull_type_series_quality_description"""
+        """根据AI分析结果生成新文件名 - 格式: 大分类_小分类_名称_系列"""
         try:
             image_type = analysis_data.get('type', '').lower()
             content = analysis_data.get('content', '').lower()
@@ -949,47 +1125,55 @@ class ImageDownloader:
                         confidence = float(match.group(1))
             
             # 只处理高置信度的分析结果
-            if confidence < 6:
+            if confidence < 5:
                 print(f"   ⚠️  置信度过低({confidence}/10)，跳过重命名")
                 return None
             
             # 获取文件扩展名
             ext = image_path.suffix.lower()
             
-            # 清理和标准化各个字段
-            type_clean = self._clean_field(image_type)
-            content_clean = self._clean_field(content) 
-            quality_clean = self._clean_field(quality)
-            description_clean = self._extract_description_keyword(description)
+            # 分析并映射到大分类
+            major_category = self._get_major_category(image_type, content, description)
             
-            # 构建文件名组件
-            filename_parts = ['image']
+            # 分析并映射到小分类
+            minor_category = self._get_minor_category(image_type, quality, content)
             
-            # 添加type (必须)
-            if type_clean:
-                filename_parts.append(type_clean)
-            else:
-                filename_parts.append('unknown')
+            # 提取名称
+            name = self._extract_name(content, description)
             
-            # 添加content (如果有意义)
-            if content_clean and content_clean not in ['null', 'none', '无', '未知', '无法确定', '其他']:
-                filename_parts.append(content_clean)
+            # 提取系列
+            series = self._extract_series(content, description)
             
-            # 添加quality (如果有意义且简洁)
-            if quality_clean and quality_clean in ['thumb', 'detail', 'main', 'hero', 'banner', 'icon']:
-                filename_parts.append(quality_clean)
+            # 构建文件名: 大分类_小分类_名称_系列
+            filename_parts = []
             
-            # 添加description关键词 (如果有意义)
-            if description_clean and description_clean not in ['unknown', 'general', 'image']:
-                filename_parts.append(description_clean)
+            if major_category:
+                filename_parts.append(self._sanitize_filename_part(major_category))
             
-            # 生成最终文件名
-            filename = '_'.join(filename_parts) + ext
+            if minor_category:
+                filename_parts.append(self._sanitize_filename_part(minor_category))
             
-            # 确保文件名不会太长
-            if len(filename) > 80:
-                # 如果太长，保留前3个部分
-                filename = '_'.join(filename_parts[:3]) + ext
+            if name:
+                filename_parts.append(self._sanitize_filename_part(name))
+            
+            if series:
+                filename_parts.append(self._sanitize_filename_part(series))
+            
+            # 如果没有足够的信息，使用默认值
+            if len(filename_parts) < 2:
+                filename_parts = ['seagull', 'product', 'watch', '01']
+            
+            # 生成最终文件名，限制长度并清理特殊字符
+            clean_parts = []
+            for part in filename_parts[:4]:
+                clean_part = self._sanitize_filename_part(part)
+                if clean_part and len(clean_part) <= 15:  # 限制每部分长度
+                    clean_parts.append(clean_part)
+            
+            if not clean_parts:
+                clean_parts = ['seagull', 'product', 'watch', '01']
+            
+            filename = '_'.join(clean_parts) + ext
             
             return filename
                 
@@ -1238,6 +1422,120 @@ class ImageDownloader:
             clean = clean.replace(chinese, english)
         
         return clean.lower()
+    
+    def _get_major_category(self, image_type, content, description):
+        """获取大分类"""
+        text = f"{image_type} {content} {description}".lower()
+        
+        # 定义大分类映射
+        if any(word in text for word in ['hero', 'banner', 'main', 'header']):
+            return 'seagull'
+        elif any(word in text for word in ['product', 'watch', 'timepiece', 'tourbillon', 'pilot', 'dive']):
+            return 'seagull'
+        elif any(word in text for word in ['team', 'people', 'person', 'staff']):
+            return 'seagull'
+        elif any(word in text for word in ['news', 'article', 'story']):
+            return 'seagull'
+        elif any(word in text for word in ['icon', 'button', 'social']):
+            return 'seagull'
+        else:
+            return 'seagull'
+    
+    def _get_minor_category(self, image_type, quality, content):
+        """获取小分类"""
+        text = f"{image_type} {quality} {content}".lower()
+        
+        # 定义小分类映射
+        if any(word in text for word in ['hero', 'banner', 'main']):
+            return 'hero'
+        elif any(word in text for word in ['product', 'watch', 'timepiece']):
+            return 'product'
+        elif any(word in text for word in ['detail', 'close', 'zoom']):
+            return 'detail'
+        elif any(word in text for word in ['team', 'people', 'person']):
+            return 'team'
+        elif any(word in text for word in ['news', 'article']):
+            return 'news'
+        elif any(word in text for word in ['icon', 'button']):
+            return 'icon'
+        elif any(word in text for word in ['gallery', 'collection']):
+            return 'gallery'
+        elif any(word in text for word in ['background', 'bg']):
+            return 'background'
+        else:
+            return 'product'
+    
+    def _extract_name(self, content, description):
+        """提取名称"""
+        text = f"{content} {description}".lower()
+        
+        # 定义名称映射
+        if any(word in text for word in ['tourbillon', '陀飞轮']):
+            return 'tourbillon'
+        elif any(word in text for word in ['pilot', '飞行', 'aviation', '1963']):
+            return '1963pilot'
+        elif any(word in text for word in ['dive', '潜水', 'ocean']):
+            return 'dive'
+        elif any(word in text for word in ['retro', '复古', 'tv', '电视']):
+            return 'retrotv'
+        elif any(word in text for word in ['women', '女', 'lady']):
+            return 'women'
+        elif any(word in text for word in ['skeleton', '镂空']):
+            return 'skeleton'
+        elif any(word in text for word in ['team', '团队']):
+            return 'team'
+        elif any(word in text for word in ['main', 'hero', 'banner']):
+            return 'main'
+        else:
+            return 'main'
+    
+    def _extract_series(self, content, description):
+        """提取系列"""
+        text = f"{content} {description}".lower()
+        
+        # 定义系列映射
+        if any(word in text for word in ['gold', '金', 'golden']):
+            return 'gold'
+        elif any(word in text for word in ['skeleton', '镂空', 'open']):
+            return 'skeleton'
+        elif any(word in text for word in ['steel', '钢', 'stainless']):
+            return 'steel'
+        elif any(word in text for word in ['jewel', '宝石', 'diamond']):
+            return 'jewels'
+        elif any(word in text for word in ['glitch', '故障', 'effect']):
+            return 'glitch'
+        elif any(word in text for word in ['thumb', 'small', '缩略']):
+            return 'thumb'
+        elif any(word in text for word in ['01', '02', '03', '04', '05']):
+            # 提取数字系列
+            import re
+            numbers = re.findall(r'\d{2}', text)
+            if numbers:
+                return numbers[0]
+            return '01'
+        else:
+            return '01'
+    
+    def _sanitize_filename_part(self, part):
+        """清理文件名组件，确保安全且简洁"""
+        if not part:
+            return ""
+        
+        # 转换为字符串并转小写
+        clean = str(part).lower().strip()
+        
+        # 移除所有非英文字母数字字符，只保留字母数字和连字符
+        import re
+        clean = re.sub(r'[^a-z0-9\-]', '', clean)
+        
+        # 移除多余的连字符
+        clean = re.sub(r'-+', '-', clean).strip('-')
+        
+        # 限制长度
+        if len(clean) > 15:
+            clean = clean[:15]
+        
+        return clean
 
 
 def main():
