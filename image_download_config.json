@@ -1,45 +1,169 @@
 {
-  "description": "通用图片下载配置文件",
+  "description": "Image-tools v4.0 通用图片下载配置文件",
+  "version": "4.0.0",
   "base_url": "https://www.chrono24.cn/",
-  "site_name": "目标网站",
+  "site_name": "Chrono24 中国",
+  "engine_settings": {
+    "default_engine": "playwright",
+    "fallback_engine": "legacy",
+    "engines": {
+      "playwright": {
+        "enabled": true,
+        "browser": "chromium",
+        "headless": true,
+        "stealth_mode": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080
+        },
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "scroll_settings": {
+          "enable_smart_scroll": true,
+          "scroll_delay": 1000,
+          "max_scroll_attempts": 10,
+          "scroll_step": 300
+        },
+        "anti_detection": {
+          "hide_webdriver": true,
+          "disable_blink_features": true,
+          "randomize_timings": true,
+          "mock_permissions": true
+        }
+      },
+      "legacy": {
+        "enabled": true,
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "headers": {
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+          "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+          "Accept-Encoding": "gzip, deflate, br",
+          "DNT": "1",
+          "Connection": "keep-alive",
+          "Upgrade-Insecure-Requests": "1"
+        }
+      }
+    }
+  },
+  "proxy_settings": {
+    "enabled": false,
+    "proxy_type": "http",
+    "proxy_url": "",
+    "proxy_auth": {
+      "username": "",
+      "password": ""
+    },
+    "rotation": {
+      "enabled": false,
+      "pool": []
+    }
+  },
   "download_settings": {
     "delay_between_downloads": 0.5,
     "max_retries": 3,
-    "timeout": 30
+    "timeout": 30,
+    "concurrent_downloads": 5,
+    "quality_preference": "high",
+    "format_preference": ["webp", "jpg", "png", "gif"],
+    "min_image_size": {
+      "width": 100,
+      "height": 100
+    },
+    "max_file_size_mb": 20,
+    "skip_duplicates": true,
+    "save_metadata": true
+  },
+  "cloudflare_bypass": {
+    "enabled": true,
+    "challenge_timeout": 30,
+    "retry_attempts": 3,
+    "wait_for_challenge": true,
+    "detect_patterns": [
+      "Checking your browser",
+      "Please wait",
+      "DDoS protection",
+      "Ray ID"
+    ]
+  },
+  "image_extraction": {
+    "srcset_priority": true,
+    "lazy_loading_detection": true,
+    "background_images": true,
+    "svg_images": false,
+    "data_urls": false,
+    "selectors": {
+      "primary": "img[src], img[data-src], img[data-srcset]",
+      "background": "[style*='background-image']",
+      "lazy": "[data-lazy], [loading='lazy']"
+    },
+    "url_filters": {
+      "exclude_patterns": [
+        "data:image",
+        "blob:",
+        "favicon",
+        "1x1",
+        "pixel",
+        "tracking"
+      ],
+      "min_url_length": 10
+    }
+  },
+  "ai_settings": {
+    "gemini_api_enabled": true,
+    "adaptive_thinking": true,
+    "batch_processing": true,
+    "confidence_threshold": 0.7,
+    "cost_optimization": true,
+    "analysis_depth": {
+      "simple_images": "basic",
+      "complex_images": "detailed",
+      "threshold_complexity": 0.6
+    }
   },
   "image_categories": {
     "hero_section": [
       {
         "filename": "hero_main_banner.jpg",
         "description": "主横幅图片",
-        "keywords": ["hero", "banner", "main", "carousel", "slide"]
+        "keywords": ["hero", "banner", "main", "carousel", "slide", "homepage"],
+        "priority": 1,
+        "quality": "high"
       },
       {
         "filename": "hero_secondary_banner.jpg", 
         "description": "次要横幅图片",
-        "keywords": ["secondary", "banner", "slide", "carousel"]
+        "keywords": ["secondary", "banner", "slide", "carousel"],
+        "priority": 2,
+        "quality": "high"
       }
     ],
     "product_grid": [
       {
         "filename": "product_featured_01.jpg",
         "description": "特色产品图片1",
-        "keywords": ["product", "featured", "grid", "catalog"]
+        "keywords": ["product", "featured", "grid", "catalog", "watch", "luxury"],
+        "priority": 3,
+        "quality": "high"
       },
       {
         "filename": "product_featured_02.jpg",
         "description": "特色产品图片2", 
-        "keywords": ["product", "featured", "grid", "catalog"]
+        "keywords": ["product", "featured", "grid", "catalog", "watch", "luxury"],
+        "priority": 3,
+        "quality": "high"
       },
       {
         "filename": "product_featured_03.jpg",
         "description": "特色产品图片3",
-        "keywords": ["product", "featured", "grid", "catalog"]
+        "keywords": ["product", "featured", "grid", "catalog", "watch", "luxury"],
+        "priority": 3,
+        "quality": "high"
       },
       {
         "filename": "product_featured_04.jpg",
         "description": "特色产品图片4",
-        "keywords": ["product", "featured", "grid", "catalog"]
+        "keywords": ["product", "featured", "grid", "catalog", "watch", "luxury"],
+        "priority": 3,
+        "quality": "high"
       }
     ],
     "featured_section": [
@@ -82,12 +206,16 @@
       {
         "filename": "product_detail_main.jpg",
         "description": "产品详情主图",
-        "keywords": ["detail", "main", "large", "product", "zoom"]
+        "keywords": ["detail", "main", "large", "product", "zoom", "watch"],
+        "priority": 2,
+        "quality": "highest"
       },
       {
         "filename": "product_detail_thumb_01.jpg",
         "description": "产品缩略图1",
-        "keywords": ["thumb", "thumbnail", "small", "preview"]
+        "keywords": ["thumb", "thumbnail", "small", "preview"],
+        "priority": 4,
+        "quality": "medium"
       },
       {
         "filename": "product_detail_thumb_02.jpg",
@@ -118,6 +246,45 @@
         "description": "社交媒体图标",
         "keywords": ["social", "icon", "media", "footer"]
       }
+    ],
+    "brand_section": [
+      {
+        "filename": "brand_logo.png",
+        "description": "品牌Logo",
+        "keywords": ["logo", "brand", "header", "chrono24"],
+        "priority": 5,
+        "quality": "high"
+      },
+      {
+        "filename": "brand_story.jpg",
+        "description": "品牌故事图片",
+        "keywords": ["brand", "story", "about", "company"],
+        "priority": 4,
+        "quality": "medium"
+      }
+    ],
+    "ui_elements": [
+      {
+        "filename": "icon_search.svg",
+        "description": "搜索图标",
+        "keywords": ["search", "icon", "ui", "magnifier"],
+        "priority": 6,
+        "quality": "medium"
+      },
+      {
+        "filename": "icon_cart.svg",
+        "description": "购物车图标",
+        "keywords": ["cart", "shopping", "icon", "ui"],
+        "priority": 6,
+        "quality": "medium"
+      }
     ]
+  },
+  "debug_settings": {
+    "enabled": false,
+    "save_html": false,
+    "save_screenshots": false,
+    "verbose_logging": false,
+    "performance_monitoring": true
   }
 } 

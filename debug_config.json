@@ -1,0 +1,48 @@
+{
+  "description": "Image-tools v4.0 调试配置文件",
+  "base_url": "https://httpbin.org/html",
+  "site_name": "调试测试网站",
+  
+  "download_settings": {
+    "delay_between_downloads": 0.2,
+    "max_retries": 2,
+    "timeout": 15,
+    "max_concurrent_downloads": 3
+  },
+  
+  "engine_settings": {
+    "default_engine": "playwright",
+    "fallback_engine": "legacy",
+    "browser_type": "chromium",
+    "headless": false,
+    "stealth_mode": true
+  },
+  
+  "proxy_settings": {
+    "enabled": false,
+    "type": "http",
+    "server": "",
+    "username": "",
+    "password": ""
+  },
+  
+  "anti_detection": {
+    "random_user_agent": true,
+    "hide_webdriver": true,
+    "simulate_human_behavior": true,
+    "scroll_behavior": {
+      "enabled": true,
+      "scroll_pause_time": 1.0,
+      "max_scroll_attempts": 3
+    }
+  },
+
+  "image_categories": [
+    {
+      "category": "test_images",
+      "filename": "test_image.jpg",
+      "keywords": ["test", "sample", "example"],
+      "selectors": ["img"]
+    }
+  ]
+} 
