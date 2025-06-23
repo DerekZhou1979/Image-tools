@@ -5,7 +5,7 @@
 # ========================================
 # 请将您的Gemini API密钥填入下面的变量中
 # 获取API密钥: https://makersuite.google.com/app/apikey
-GEMINI_API_KEY="AIzaSyC1q9AcDH4lvD4sU8ribire9S3C7kX548k"
+GEMINI_API_KEY=""
 
 # 如果配置了API密钥，则导出为环境变量
 if [ -n "$GEMINI_API_KEY" ]; then
