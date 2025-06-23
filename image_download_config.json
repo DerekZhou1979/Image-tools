@@ -1,0 +1,123 @@
+{
+  "description": "通用图片下载配置文件",
+  "base_url": "https://www.seagullwatch.com/",
+  "site_name": "目标网站",
+  "download_settings": {
+    "delay_between_downloads": 0.5,
+    "max_retries": 3,
+    "timeout": 30
+  },
+  "image_categories": {
+    "hero_section": [
+      {
+        "filename": "hero_main_banner.jpg",
+        "description": "主横幅图片",
+        "keywords": ["hero", "banner", "main", "carousel", "slide"]
+      },
+      {
+        "filename": "hero_secondary_banner.jpg", 
+        "description": "次要横幅图片",
+        "keywords": ["secondary", "banner", "slide", "carousel"]
+      }
+    ],
+    "product_grid": [
+      {
+        "filename": "product_featured_01.jpg",
+        "description": "特色产品图片1",
+        "keywords": ["product", "featured", "grid", "catalog"]
+      },
+      {
+        "filename": "product_featured_02.jpg",
+        "description": "特色产品图片2", 
+        "keywords": ["product", "featured", "grid", "catalog"]
+      },
+      {
+        "filename": "product_featured_03.jpg",
+        "description": "特色产品图片3",
+        "keywords": ["product", "featured", "grid", "catalog"]
+      },
+      {
+        "filename": "product_featured_04.jpg",
+        "description": "特色产品图片4",
+        "keywords": ["product", "featured", "grid", "catalog"]
+      }
+    ],
+    "featured_section": [
+      {
+        "filename": "featured_main_product.jpg",
+        "description": "主推产品图片",
+        "keywords": ["featured", "main", "highlight", "showcase"]
+      }
+    ],
+    "showcase_section": [
+      {
+        "filename": "showcase_category_01.jpg",
+        "description": "展示分类1",
+        "keywords": ["showcase", "category", "collection"]
+      },
+      {
+        "filename": "showcase_category_02.jpg",
+        "description": "展示分类2",
+        "keywords": ["showcase", "category", "collection"]
+      },
+      {
+        "filename": "showcase_category_03.jpg",
+        "description": "展示分类3",
+        "keywords": ["showcase", "category", "collection"]
+      }
+    ],
+    "news_section": [
+      {
+        "filename": "news_article_01.jpg",
+        "description": "新闻文章图片1",
+        "keywords": ["news", "article", "blog", "content"]
+      },
+      {
+        "filename": "news_article_02.jpg",
+        "description": "新闻文章图片2",
+        "keywords": ["news", "article", "blog", "content"]
+      }
+    ],
+    "product_detail": [
+      {
+        "filename": "product_detail_main.jpg",
+        "description": "产品详情主图",
+        "keywords": ["detail", "main", "large", "product", "zoom"]
+      },
+      {
+        "filename": "product_detail_thumb_01.jpg",
+        "description": "产品缩略图1",
+        "keywords": ["thumb", "thumbnail", "small", "preview"]
+      },
+      {
+        "filename": "product_detail_thumb_02.jpg",
+        "description": "产品缩略图2",
+        "keywords": ["thumb", "thumbnail", "small", "preview"]
+      }
+    ],
+    "gallery_section": [
+      {
+        "filename": "gallery_image_01.jpg",
+        "description": "画廊图片1",
+        "keywords": ["gallery", "image", "photo", "portfolio"]
+      },
+      {
+        "filename": "gallery_image_02.jpg",
+        "description": "画廊图片2",
+        "keywords": ["gallery", "image", "photo", "portfolio"]
+      }
+    ],
+    "icons_and_ui": [
+      {
+        "filename": "icon_logo.png",
+        "description": "网站Logo",
+        "keywords": ["logo", "brand", "icon", "header"]
+      },
+      {
+        "filename": "icon_social_media.png",
+        "description": "社交媒体图标",
+        "keywords": ["social", "icon", "media", "footer"]
+      }
+    ]
+  }
+} 
