@@ -72,6 +72,17 @@
     "skip_duplicates": true,
     "save_metadata": true
   },
+  "svg_conversion": {
+    "enabled": true,
+    "auto_convert": true,
+    "width": 512,
+    "height": 512,
+    "quality": "high",
+    "keep_original": true,
+    "engines": ["cairosvg", "svglib", "pillow"],
+    "fallback_mode": true,
+    "batch_process": true
+  },
   "cloudflare_bypass": {
     "enabled": true,
     "challenge_timeout": 30,

@@ -21,8 +21,7 @@ except ImportError:
     PLAYWRIGHT_IMPORTED = False
 
 from .base_engine import BaseImageEngine, ImageInfo
-from ..utils.browser_config import BrowserConfig
-
+from utils.browser_config import BrowserConfig
 
 class PlaywrightImageEngine(BaseImageEngine):
     """基于Playwright的图片爬取引擎"""
@@ -44,26 +43,18 @@ class PlaywrightImageEngine(BaseImageEngine):
             self.config = config
             engine_settings = config.get('engine_settings', {})
             
-            # 启动Playwright
             self.playwright = await async_playwright().start()
-            
-            # 获取浏览器类型
             browser_type = engine_settings.get('browser_type', 'chromium')
             browser_launcher = getattr(self.playwright, browser_type)
             
-            # 配置启动参数
             launch_options = {
                 'headless': engine_settings.get('headless', True),
                 'args': BrowserConfig.get_stealth_launch_args() if engine_settings.get('stealth_mode', True) else []
             }
             
-            # 启动浏览器
             self.browser = await browser_launcher.launch(**launch_options)
-            
-            # 创建上下文
             context_options = BrowserConfig.get_stealth_context_options()
             
-            # 添加代理配置
             proxy_settings = config.get('proxy_settings', {})
             if proxy_settings.get('enabled', False):
                 proxy_config = BrowserConfig.get_proxy_config(proxy_settings)
@@ -72,14 +63,10 @@ class PlaywrightImageEngine(BaseImageEngine):
             
             self.context = await self.browser.new_context(**context_options)
             
-            # 注入反检测脚本
             if engine_settings.get('stealth_mode', True):
                 await self._inject_stealth_scripts()
             
-            # 创建页面
             self.page = await self.context.new_page()
-            
-            # 设置额外的事件监听
             await self._setup_page_handlers()
             
             self.log_info("Playwright引擎初始化成功")
@@ -91,55 +78,30 @@ class PlaywrightImageEngine(BaseImageEngine):
             return False
     
     async def _inject_stealth_scripts(self):
-        """注入反检测脚本"""
         stealth_scripts = BrowserConfig.get_stealth_scripts()
-        
         for script in stealth_scripts:
-            try:
-                await self.context.add_init_script(script)
-            except Exception as e:
-                self.log_error(f"注入反检测脚本失败: {script[:50]}...", e)
+            await self.context.add_init_script(script)
     
     async def _setup_page_handlers(self):
-        """设置页面事件处理器"""
-        # 处理对话框（如alert, confirm等）
         self.page.on('dialog', lambda dialog: asyncio.create_task(dialog.dismiss()))
-        
-        # 处理控制台消息（调试用）
-        # self.page.on('console', lambda msg: print(f"Console: {msg.text}"))
-        
-        # 处理页面错误
         self.page.on('pageerror', lambda error: self.log_error(f"页面错误: {error}"))
     
     async def extract_image_urls(self, url: str) -> List[ImageInfo]:
-        """智能提取图片URL"""
         try:
             self.log_info(f"正在访问页面: {url}")
-            
-            # 导航到页面
             response = await self.page.goto(url, wait_until='networkidle', timeout=60000)
             
             if not response or not response.ok:
                 self.log_error(f"页面加载失败: {response.status if response else 'No response'}")
                 return []
             
-            self.log_info("页面加载成功，开始检测和处理动态内容...")
-            
-            # 处理可能的Cookie同意弹窗
             await self._handle_cookie_consent()
+            await self._enhanced_lazy_load_scroll()
+            await self._wait_for_all_images_loaded()
             
-            # 执行智能滚动以触发懒加载
-            await self._smart_scroll()
-            
-            # 等待图片加载
-            await self._wait_for_images_to_load()
-            
-            # 提取图片信息
             image_infos = await self._extract_all_images()
-            
             self.stats['images_found'] = len(image_infos)
             self.log_info(f"成功提取到 {len(image_infos)} 张图片")
-            
             return image_infos
             
         except Exception as e:
@@ -147,132 +109,200 @@ class PlaywrightImageEngine(BaseImageEngine):
             return []
     
     async def _handle_cookie_consent(self):
-        """处理Cookie同意弹窗"""
-        try:
-            # 常见的Cookie同意按钮选择器
-            consent_selectors = [
-                'button:has-text("Accept")',
-                'button:has-text("同意")',
-                'button:has-text("确定")',
-                'button:has-text("OK")',
-                '.cookie-accept',
-                '#cookie-accept',
-                '[data-testid="cookie-accept"]'
-            ]
-            
-            for selector in consent_selectors:
-                try:
-                    element = await self.page.wait_for_selector(selector, timeout=3000)
-                    if element:
-                        await element.click()
-                        self.log_info("已处理Cookie同意弹窗")
-                        await self.page.wait_for_timeout(1000)
-                        break
-                except:
-                    continue
-                    
-        except Exception as e:
-            # Cookie弹窗处理失败不影响主流程
-            pass
+        consent_selectors = ['button:has-text("Accept")', 'button:has-text("同意")']
+        for selector in consent_selectors:
+            try:
+                await self.page.click(selector, timeout=2000)
+                self.log_info("已处理Cookie同意弹窗")
+                return
+            except:
+                pass
     
     async def _smart_scroll(self):
-        """智能滚动以触发懒加载"""
+        scroll_config = BrowserConfig.get_scroll_behavior_config(self.config)
+        if not scroll_config.get('enabled', True): return
+
+        self.log_info("开始智能滚动...")
+        last_height = 0
+        for _ in range(scroll_config.get('max_scroll_attempts', 10)):
+            current_height = await self.page.evaluate('document.body.scrollHeight')
+            await self.page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+            await self.page.wait_for_timeout(int(scroll_config.get('scroll_pause_time', 2.0) * 1000))
+            if current_height == last_height:
+                break
+            last_height = current_height
+
+    async def _enhanced_lazy_load_scroll(self):
+        """增强的懒加载滚动策略 - 专门针对Chrono24等电商网站"""
+        scroll_config = BrowserConfig.get_scroll_behavior_config(self.config)
+        if not scroll_config.get('enabled', True): 
+            return
+
+        self.log_info("开始增强懒加载滚动策略...")
+        
+        # 第一阶段：渐进式滚动，触发懒加载
+        self.log_info("阶段1: 渐进式滚动触发懒加载")
+        viewport_height = await self.page.evaluate('window.innerHeight')
+        total_height = await self.page.evaluate('document.body.scrollHeight')
+        
+        # 小步滚动，每次滚动一个视口的高度
+        current_position = 0
+        scroll_step = viewport_height * 0.8  # 每次滚动80%视口高度，确保重叠
+        
+        while current_position < total_height:
+            await self.page.evaluate(f'window.scrollTo(0, {current_position})')
+            await self.page.wait_for_timeout(1500)  # 等待懒加载触发
+            
+            # 等待网络空闲，确保图片请求发出
+            try:
+                await self.page.wait_for_load_state('networkidle', timeout=3000)
+            except:
+                pass
+                
+            current_position += scroll_step
+            # 重新获取总高度，因为可能有动态内容加载
+            total_height = await self.page.evaluate('document.body.scrollHeight')
+        
+        # 第二阶段：滚动到底部，确保所有内容都被触发
+        self.log_info("阶段2: 滚动到页面底部")
+        await self.page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+        await self.page.wait_for_timeout(3000)
+        
+        # 第三阶段：再次从顶部到底部滚动，确保所有懒加载都被触发
+        self.log_info("阶段3: 二次扫描滚动")
+        await self.page.evaluate('window.scrollTo(0, 0)')
+        await self.page.wait_for_timeout(2000)
+        
+        final_height = await self.page.evaluate('document.body.scrollHeight')
+        current_position = 0
+        scroll_step = viewport_height
+        
+        while current_position < final_height:
+            await self.page.evaluate(f'window.scrollTo(0, {current_position})')
+            await self.page.wait_for_timeout(800)  # 更快的二次扫描
+            current_position += scroll_step
+            
+        # 最后滚动到底部
+        await self.page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+        self.log_info("增强懒加载滚动完成")
+
+    async def _wait_for_all_images_loaded(self):
+        """等待所有图片完全加载完成"""
+        self.log_info("等待所有图片加载完成...")
+        
+        # 等待所有图片元素都有真实的src属性
+        max_wait_time = 30  # 最多等待30秒
+        wait_interval = 2   # 每2秒检查一次
+        waited_time = 0
+        
+        while waited_time < max_wait_time:
+            # 检查页面中的图片加载状态
+            image_status = await self.page.evaluate('''() => {
+                const images = Array.from(document.querySelectorAll('img'));
+                let total = images.length;
+                let loaded = 0;
+                let withSrc = 0;
+                
+                images.forEach(img => {
+                    if (img.src && !img.src.startsWith('data:')) {
+                        withSrc++;
+                    }
+                    if (img.complete && img.naturalWidth > 0) {
+                        loaded++;
+                    }
+                });
+                
+                return { total, loaded, withSrc };
+            }''')
+            
+            self.log_info(f"图片加载状态: {image_status['loaded']}/{image_status['total']} 加载完成, {image_status['withSrc']} 个有有效src")
+            
+            # 如果大部分图片都已加载，就可以继续
+            if image_status['total'] > 0:
+                load_ratio = image_status['loaded'] / image_status['total']
+                src_ratio = image_status['withSrc'] / image_status['total']
+                
+                if load_ratio > 0.8 and src_ratio > 0.9:  # 80%加载完成，90%有src
+                    self.log_info("图片加载达到阈值，继续处理")
+                    break
+            
+            await self.page.wait_for_timeout(wait_interval * 1000)
+            waited_time += wait_interval
+        
+        # 最后等待网络空闲
         try:
-            scroll_config = BrowserConfig.get_scroll_behavior_config(self.config)
-            
-            if not scroll_config.get('enabled', True):
-                return
-            
-            self.log_info("开始智能滚动以触发懒加载...")
-            
-            max_attempts = scroll_config.get('max_scroll_attempts', 10)
-            pause_time = scroll_config.get('scroll_pause_time', 2.0)
-            
-            last_height = 0
-            attempts = 0
-            
-            while attempts < max_attempts:
-                # 获取当前页面高度
-                current_height = await self.page.evaluate('document.body.scrollHeight')
-                
-                # 如果高度没有变化，说明可能已经到底了
-                if current_height == last_height:
-                    attempts += 1
-                else:
-                    attempts = 0  # 重置计数器
-                
-                # 平滑滚动到底部
-                await self.page.evaluate('''
-                    window.scrollTo({
-                        top: document.body.scrollHeight,
-                        behavior: 'smooth'
-                    });
-                ''')
-                
-                # 等待内容加载
-                await self.page.wait_for_timeout(int(pause_time * 1000))
-                
-                last_height = current_height
-                
-                # 模拟随机暂停（更像人类行为）
-                if scroll_config.get('random_pause', True):
-                    import random
-                    pause_range = scroll_config.get('pause_range', (0.5, 1.5))
-                    await self.page.wait_for_timeout(random.uniform(pause_range[0], pause_range[1]) * 1000)
-            
-        except Exception as e:
-            self.log_error("智能滚动失败", e)
-    
-    async def _wait_for_images_to_load(self):
-        """等待图片加载"""
-        try:
-            # 这里需要实现等待图片加载的逻辑
-            # 目前只是一个占位函数，实际实现需要根据实际情况来决定
-            await self.page.wait_for_timeout(5000)  # 临时等待
-        except Exception as e:
-            self.log_error("等待图片加载失败", e)
-    
+            await self.page.wait_for_load_state('networkidle', timeout=5000)
+            self.log_info("网络已空闲，图片加载完成")
+        except:
+            self.log_info("网络等待超时，继续处理")
+        
+        # 额外等待确保所有懒加载都完成
+        await self.page.wait_for_timeout(3000)
+
     async def _extract_all_images(self) -> List[ImageInfo]:
-        """提取所有图片信息"""
+        self.log_info("正在从DOM中提取图片...")
+        images_data = await self.page.evaluate('''() => {
+            return Array.from(document.querySelectorAll('img')).map(img => ({
+                url: img.currentSrc || img.src,
+                alt: img.alt || '',
+                width: img.naturalWidth,
+                height: img.naturalHeight
+            }));
+        }''')
+
+        image_infos = []
+        for data in images_data:
+            if not data['url'] or data['url'].startswith('data:'): continue
+            if data['width'] < 50 or data['height'] < 50: continue
+            
+            absolute_url = urljoin(self.page.url, data['url'])
+            image_infos.append(ImageInfo(url=absolute_url, metadata=data))
+        
+        self.log_info(f"DOM中提取到 {len(image_infos)} 张有效图片")
+        return image_infos
+
+    async def download_image(self, image_info: ImageInfo, save_dir: str) -> bool:
+        """下载单张图片 - 使用Playwright浏览器会话"""
+        save_path = os.path.join(save_dir, image_info.filename)
+        os.makedirs(save_dir, exist_ok=True)
+        
         try:
-            # 这里需要实现提取所有图片信息的逻辑
-            # 目前只是一个占位函数，实际实现需要根据实际情况来决定
-            return []  # 临时返回空列表
+            # 使用Playwright页面的会话来下载，包含cookies和headers
+            response = await self.page.request.get(image_info.url)
+            
+            if response.status == 200:
+                content = await response.body()
+                with open(save_path, 'wb') as f:
+                    f.write(content)
+                self.stats['total_size'] += len(content)
+                self.log_info(f"✅ 下载成功: {image_info.filename}")
+                return True
+            else:
+                self.log_error(f"下载失败 ({response.status}): {image_info.url}")
+                return False
+                
         except Exception as e:
-            self.log_error("提取所有图片信息失败", e)
-            return []
-    
+            self.log_error(f"下载异常: {image_info.url}", e)
+            return False
+
     async def cleanup(self):
-        """清理资源"""
         try:
-            if self.browser:
-                await self.browser.close()
-            if self.context:
-                await self.context.close()
-            if self.playwright:
-                await self.playwright.stop()
+            if self.page: await self.page.close()
+            if self.context: await self.context.close()
+            if self.browser: await self.browser.close()
+            if self.playwright: await self.playwright.stop()
             self.log_info("Playwright引擎清理成功")
         except Exception as e:
             self.log_error("Playwright引擎清理失败", e)
     
-    async def batch_download(self, image_infos: List[ImageInfo], output_dir: str, max_concurrent: int = 5) -> Dict:
-        """批量下载图片"""
-        try:
-            # 这里需要实现批量下载图片的逻辑
-            # 目前只是一个占位函数，实际实现需要根据实际情况来决定
-            return {}  # 临时返回空字典
-        except Exception as e:
-            self.log_error("批量下载图片失败", e)
-            return {}
-    
     def get_stats(self) -> Dict:
-        """获取引擎统计信息"""
         return self.stats
 
     def log_info(self, message: str):
-        """记录信息"""
-        print(f"[INFO] {message}")
+        print(f"ℹ️  [Playwright] {message}")
 
     def log_error(self, message: str, exception: Exception = None):
-        """记录错误"""
-        print(f"[ERROR] {message}", exception) 
+        if exception:
+            print(f"❌ [Playwright] {message}: {exception}")
+        else:
+            print(f"❌ [Playwright] {message}") 

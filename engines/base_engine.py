@@ -60,4 +60,76 @@ class BaseImageEngine(ABC):
         pass
     
     @abstractmethod
-    async def extract_image 
+    async def extract_image_urls(self, url: str) -> List[ImageInfo]:
+        """
+        从指定URL提取所有图片信息
+        
+        Args:
+            url: 目标网页URL
+            
+        Returns:
+            List[ImageInfo]: 图片信息列表
+        """
+        pass
+    
+    @abstractmethod
+    async def download_image(self, image_info: ImageInfo, save_dir: str) -> bool:
+        """
+        下载单张图片
+        
+        Args:
+            image_info: 图片信息
+            save_dir: 保存目录
+            
+        Returns:
+            bool: 下载是否成功
+        """
+        pass
+    
+    async def batch_download(self, image_infos: List[ImageInfo], save_dir: str, 
+                           max_concurrent: int = 5) -> Dict:
+        """
+        批量下载图片（默认实现）
+        
+        Args:
+            image_infos: 图片信息列表
+            save_dir: 保存目录
+            max_concurrent: 最大并发数
+            
+        Returns:
+            Dict: 下载结果统计
+        """
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def download_with_semaphore(image_info):
+            async with semaphore:
+                return await self.download_image(image_info, save_dir)
+        
+        tasks = [download_with_semaphore(info) for info in image_infos]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 更新统计信息
+        successful = sum(1 for r in results if r is True)
+        failed = len(results) - successful
+        
+        self.stats['images_downloaded'] = successful
+        self.stats['images_failed'] = failed
+        
+        return {
+            'successful': successful,
+            'failed': failed,
+            'total_size': self.stats['total_size']
+        }
+    
+    @abstractmethod
+    async def cleanup(self):
+        """清理资源"""
+        pass
+    
+    def get_stats(self) -> Dict:
+        """获取统计信息"""
+        return self.stats.copy()
+    
+    def update_config(self, config: Dict):
+        """更新配置"""
+        self.config.update(config) 

@@ -28,6 +28,17 @@ class LegacyImageEngine(BaseImageEngine):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
     
+    def log_info(self, message: str):
+        """信息日志"""
+        print(f"ℹ️  [Legacy] {message}")
+    
+    def log_error(self, message: str, error: Exception = None):
+        """错误日志"""
+        if error:
+            print(f"❌ [Legacy] {message}: {error}")
+        else:
+            print(f"❌ [Legacy] {message}")
+    
     async def initialize(self, config: Dict) -> bool:
         """初始化传统引擎"""
         try:

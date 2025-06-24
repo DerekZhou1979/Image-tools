@@ -44,6 +44,111 @@ class BrowserConfig:
         "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
         "zh-CN;q=0.9,zh;q=0.8,en;q=0.7"
     ]
+
+    # === Playwright引擎期望的方法 ===
+    
+    @staticmethod
+    def get_stealth_launch_args() -> List[str]:
+        """获取Playwright浏览器启动的反检测参数"""
+        return [
+            "--no-sandbox",
+            "--disable-setuid-sandbox", 
+            "--disable-dev-shm-usage",
+            "--disable-blink-features=AutomationControlled",
+            "--disable-features=VizDisplayCompositor",
+            "--disable-web-security",
+            "--disable-features=TranslateUI",
+            "--disable-ipc-flooding-protection",
+            "--no-first-run",
+            "--no-zygote",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding"
+        ]
+    
+    @staticmethod
+    def get_stealth_context_options() -> Dict:
+        """获取Playwright浏览器上下文的反检测选项"""
+        resolution = random.choice(BrowserConfig.SCREEN_RESOLUTIONS)
+        user_agent = random.choice(BrowserConfig.USER_AGENTS)
+        language = random.choice(BrowserConfig.LANGUAGES)
+        
+        return {
+            "user_agent": user_agent,
+            "viewport": resolution,
+            "locale": "zh-CN",
+            "timezone_id": "Asia/Shanghai",
+            "extra_http_headers": {
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+                "Accept-Language": language,
+                "Accept-Encoding": "gzip, deflate, br",
+                "DNT": "1",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate", 
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1"
+            }
+        }
+    
+    @staticmethod
+    def get_stealth_scripts() -> List[str]:
+        """获取反检测JavaScript脚本"""
+        return [
+            # 隐藏webdriver标记
+            """
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+            """,
+            # 修改navigator.plugins
+            """
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5]
+            });
+            """,
+            # 修改navigator.languages
+            """
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['zh-CN', 'zh', 'en']
+            });
+            """,
+            # 隐藏Chrome自动化扩展
+            """
+            if (window.chrome && window.chrome.runtime && window.chrome.runtime.onConnect) {
+                delete window.chrome.runtime.onConnect;
+            }
+            """
+        ]
+    
+    @staticmethod
+    def get_proxy_config(proxy_settings: Dict) -> Optional[Dict]:
+        """获取代理配置"""
+        if not proxy_settings.get('enabled', False):
+            return None
+            
+        proxy_config = {}
+        if proxy_settings.get('server'):
+            proxy_config['server'] = proxy_settings['server']
+        if proxy_settings.get('username') and proxy_settings.get('password'):
+            proxy_config['username'] = proxy_settings['username']
+            proxy_config['password'] = proxy_settings['password']
+            
+        return proxy_config if proxy_config else None
+    
+    @staticmethod
+    def get_scroll_behavior_config(config: Dict) -> Dict:
+        """获取滚动行为配置"""
+        scroll_settings = config.get('scroll_settings', {})
+        return {
+            'enabled': scroll_settings.get('enabled', True),
+            'max_scroll_attempts': scroll_settings.get('max_scroll_attempts', 10),
+            'scroll_pause_time': scroll_settings.get('scroll_pause_time', 2.0),
+            'random_pause': scroll_settings.get('random_pause', True),
+            'pause_range': scroll_settings.get('pause_range', (0.5, 1.5))
+        }
+
+    # === 原有的方法保持不变 ===
     
     @classmethod
     def get_stealth_config(cls, engine: str = "playwright") -> Dict:

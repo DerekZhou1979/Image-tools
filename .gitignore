@@ -1,0 +1,51 @@
+# Python缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# 下载的图片文件
+images/
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.gif
+*.webp
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+
+# IDE相关
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 配置文件中的敏感信息
+*config_local*
+*secrets*
+
+# 测试覆盖率
+.coverage
+htmlcov/
+
+# 浏览器相关
+*.crx
+chrome-extension/ 
